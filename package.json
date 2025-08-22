@@ -1,5 +1,4 @@
 {
-{
   "name": "emaldo-newsletter-archive",
   "version": "0.1.0",
   "private": true,
@@ -8,10 +7,6 @@
     "build": "next build",
     "postinstall": "prisma generate",
     "vercel-build": "prisma migrate deploy && next build"
-  }
-  /* keep your existing dependencies/devDependencies blocks exactly as they were */
-}
-
   },
   "dependencies": {
     "@prisma/client": "5.18.0",
@@ -33,14 +28,8 @@
     "prisma": "5.18.0",
     "tailwindcss": "3.4.9",
     "typescript": "5.5.4"
+  },
+  "engines": {
+    "node": ">=18.17"
   }
-  {
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "postinstall": "prisma generate",
-    "vercel-build": "prisma migrate deploy && next build"
-  }
-}
-
 }
