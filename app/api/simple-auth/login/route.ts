@@ -3,62 +3,86 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+const AUTH_COOKIE = "ea_auth";   // must match middleware.ts
+const EMAIL_COOKIE = "ea_email";
+
+function isProd() {
+  return process.env.NODE_ENV === "production";
+}
+
 export async function POST(req: Request) {
-  // Body
-  const { email, password } = await req.json().catch(() => ({} as any));
+  // ---- 1) Parse body safely
+  let email = "";
+  let password = "";
+  try {
+    const body = await req.json();
+    email = String(body?.email ?? "").trim();
+    password = String(body?.password ?? "");
+  } catch {
+    // ignore, handled by validation below
+  }
 
-  // Query (?redirect=/path)
-  const url = new URL(req.url);
-  const redirect = url.searchParams.get("redirect") || "/archive";
-
-  const allowed = (process.env.ALLOWED_EMAIL_DOMAIN || "").toLowerCase();
-  const domain = String(email || "").split("@")[1]?.toLowerCase();
+  const allowedDomain = (process.env.ALLOWED_EMAIL_DOMAIN || "").toLowerCase();
+  const domain = email.split("@")[1]?.toLowerCase();
 
   if (!email || !password) {
     return NextResponse.json({ error: "Missing email or password" }, { status: 400 });
   }
-  if (!allowed) {
-    return NextResponse.json({ error: "Server misconfigured: ALLOWED_EMAIL_DOMAIN missing" }, { status: 500 });
+  if (!allowedDomain) {
+    return NextResponse.json(
+      { error: "Server misconfigured (ALLOWED_EMAIL_DOMAIN missing)" },
+      { status: 500 }
+    );
   }
-  if (!domain || domain !== allowed) {
-    return NextResponse.json({ error: `Email must be @${allowed}` }, { status: 400 });
+  if (!domain || domain !== allowedDomain) {
+    return NextResponse.json({ error: `Email must be @${allowedDomain}` }, { status: 400 });
   }
 
-  // 1) Prefer DB-stored hash
+  // ---- 2) Verify password (DB-stored bcrypt hash takes precedence)
   let ok = false;
-  const secret = await prisma.secret.findUnique({ where: { key: "shared_password_hash" } });
-  if (secret?.value) {
-    ok = await bcrypt.compare(password, secret.value);
-  } else {
-    // 2) Fallback to env SHARED_PASSWORD if no DB value yet
-    const shared = process.env.SHARED_PASSWORD || "";
-    ok = shared.length > 0 && password === shared;
+  try {
+    const secret = await prisma.secret.findUnique({ where: { key: "shared_password_hash" } });
+    if (secret?.value) {
+      ok = await bcrypt.compare(password, secret.value);
+    } else {
+      const fallback = process.env.SHARED_PASSWORD || "";
+      ok = fallback.length > 0 && password === fallback;
+    }
+  } catch {
+    return NextResponse.json({ error: "Auth check failed" }, { status: 500 });
   }
 
   if (!ok) {
-    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    const res = NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    // Clear any stray cookies on failure
+    res.cookies.set(AUTH_COOKIE, "", { path: "/", maxAge: 0 });
+    res.cookies.set(EMAIL_COOKIE, "", { path: "/", maxAge: 0 });
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   }
 
-  // --- Auth OK: set cookies ---
-  const res = NextResponse.json({ ok: true, next: redirect });
+  // ---- 3) Success → set cookies the middleware expects
+  const res = NextResponse.json({ ok: true, next: "/archive" });
 
-  // Session cookie used by middleware
-  res.cookies.set("ea_auth", "1", {
+  // IMPORTANT: Do NOT set the "domain" attribute; let the browser scope to current host.
+  res.cookies.set(AUTH_COOKIE, "1", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
+    secure: isProd(),      // secure on Vercel, not required locally
     path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: 60 * 60 * 8,   // 8 hours
   });
 
-  // Convenience (non-HTTPOnly) email cookie
-  res.cookies.set("emaldo_email", email, {
+  // Optional helper cookie for UI (not httpOnly so client can read it)
+  res.cookies.set(EMAIL_COOKIE, email, {
     httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
+    secure: isProd(),
     path: "/",
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: 60 * 60 * 8,
   });
 
+  // Never cache auth responses
+  res.headers.set("Cache-Control", "no-store");
   return res;
 }

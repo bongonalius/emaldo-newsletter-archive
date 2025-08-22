@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    serverActions: { allowedOrigins: ['*'] }
-  }
+  // DO NOT add: output: 'export'
+  // (That would disable middleware.)
 };
+
 export default nextConfig;

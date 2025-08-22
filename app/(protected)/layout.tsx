@@ -1,24 +1,15 @@
+// app/(protected)/layout.tsx
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { StackServerApp } from "@stackframe/nextjs/app";
+import type { ReactNode } from "react";
 
-export const dynamic = "force-dynamic"; // never cache protected pages
+export const dynamic = "force-dynamic"; // don't cache protected pages
 
-export default async function ProtectedLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const app = new StackServerApp();
-  const user = await app.getUser(); // null if not signed in
-
-  if (!user) {
-    redirect(`/handler/sign-in?redirect=/archive`);
+export default function ProtectedLayout({ children }: { children: ReactNode }) {
+  // Must match /api/simple-auth/login: ea_auth = "1"
+  const authed = cookies().get("ea_auth")?.value === "1";
+  if (!authed) {
+    redirect("/signin?redirect=/archive");
   }
-
-  const email = (user.email || "").toLowerCase();
-  if (!email.endsWith("@emaldo.com")) {
-    redirect("/not-allowed");
-  }
-
   return <>{children}</>;
 }
