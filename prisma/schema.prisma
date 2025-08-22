@@ -1,0 +1,41 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Newsletter {
+  id           String   @id @default(cuid())
+  campaignId   String   @unique
+  messageId    String   @unique
+  subject      String
+  fromEmail    String?
+  previewText  String?
+  sentAt       DateTime
+  html         String
+  text         String?
+  thumbnailUrl String?
+  tags         String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ImportLog {
+  id         String   @id @default(cuid())
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  status     String
+  note       String?
+}
+
+model Secret {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
