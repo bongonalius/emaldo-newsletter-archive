@@ -10,6 +10,53 @@ type Newsletter = {
   sentAt: string; // ISO
 };
 
+/** ---------- Disclaimer (dismissible + persists across reloads) ---------- */
+const DISMISS_KEY = "ea_archive_disclaimer_dismissed_v1";
+
+function DisclaimerBanner() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // show unless previously dismissed
+    try {
+      const dismissed = localStorage.getItem(DISMISS_KEY) === "1";
+      setVisible(!dismissed);
+    } catch {
+      setVisible(true);
+    }
+  }, []);
+
+  const dismiss = () => {
+    setVisible(false);
+    try {
+      localStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      /* ignore storage errors */
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 text-yellow-900 px-4 py-3 flex justify-between gap-3">
+      <p className="text-sm leading-relaxed">
+        <strong>Heads up:</strong> The newsletters in this archive represent the
+        original messages as they were sent. However, some visual inconsistencies
+        may appear due to import formatting restrictions.
+      </p>
+      <button
+        onClick={dismiss}
+        className="shrink-0 px-2 text-yellow-800 hover:text-yellow-900 font-semibold"
+        aria-label="Dismiss disclaimer"
+        title="Dismiss"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+/** ----------------------------------------------------------------------- */
+
 function normalizeResponse(d: any): Newsletter[] {
   const raw: any[] = Array.isArray(d)
     ? d
@@ -104,6 +151,9 @@ export default function ArchivePage() {
       <Header onImport={runImport} />
 
       <main className="max-w-6xl mx-auto p-6 mt-16">
+        {/* NEW: disclaimer above the search bar */}
+        <DisclaimerBanner />
+
         <div className="mb-6 flex gap-3 items-center">
           <input
             className="border rounded-xl px-3 py-2 flex-1"
